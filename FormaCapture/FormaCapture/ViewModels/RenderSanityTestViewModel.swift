@@ -20,6 +20,9 @@ final class RenderSanityTestViewModel: ObservableObject {
     @Published var log: String = ""
     @Published var maxDrift: Double?
     @Published var lastCapturedImage: NSImage?
+    @Published var snapshotCompareImage: NSImage?
+    @Published var pixelBufferCompareImage: NSImage?
+    @Published var pixelDiffResult: String?
 
     private let renderService = WebRenderService()
     private let captureService = FrameCaptureService()
@@ -133,6 +136,71 @@ final class RenderSanityTestViewModel: ObservableObject {
         } catch {
             append("FAILED: \(error.localizedDescription)")
             AppLog.capture.error("Frame capture test failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Captures the same driven frame two ways -- takeSnapshot() (proven
+    /// correct) and CALayer.render(in:) via CVPixelBuffer (candidate fast
+    /// path) -- and compares them, both quantitatively and by putting both
+    /// images in front of you. The number alone isn't the verdict; look at
+    /// both thumbnails.
+    func compareCaptureMethods() async {
+        isRunning = true
+        log = ""
+        snapshotCompareImage = nil
+        pixelBufferCompareImage = nil
+        pixelDiffResult = nil
+        defer { isRunning = false }
+
+        do {
+            append("Loading engines/p5.html from \(baseURL.absoluteString)...")
+            try await renderService.load(baseURL: baseURL)
+
+            append("Selecting animation: \(animation)")
+            try await renderService.selectAnimation(animation)
+
+            append("Selecting palette: \(palette)")
+            try await renderService.selectPalette(palette)
+
+            append("Waiting for setup...")
+            try await renderService.waitForSetupDone()
+
+            try await renderService.setNoiseSeed(noiseSeed)
+            try await renderService.stopAutomaticLoop()
+
+            let targetSeconds = 5.0
+            let targetFrameCount = targetSeconds * 60.0
+            append("Stepping to frameCount \(Int(targetFrameCount)) (\(targetSeconds)s in)...")
+            _ = try await renderService.stepFrame(toTargetFrameCount: targetFrameCount)
+
+            append("Capturing via takeSnapshot() (proven-correct baseline)...")
+            let snapshotImage = try await captureService.captureSnapshot(of: renderService.webView)
+            snapshotCompareImage = snapshotImage
+
+            append("Capturing via CALayer.render(in:) -> CVPixelBuffer (candidate fast path)...")
+            let pixelBuffer = try captureService.capturePixelBuffer(from: renderService.webView)
+            guard let layerImage = captureService.image(from: pixelBuffer) else {
+                throw FrameCaptureService.CaptureError.pngEncodingFailed
+            }
+            pixelBufferCompareImage = layerImage
+
+            if let diff = captureService.meanAbsoluteDifference(snapshotImage, layerImage) {
+                let verdict = diff < 2.0 ? "essentially identical"
+                             : diff < 15.0 ? "close, minor differences (could be color space/scaling, not necessarily wrong)"
+                             : "SIGNIFICANTLY DIFFERENT -- do not trust the fast path yet"
+                let result = String(format: "Mean abs diff: %.2f / 255 -- %@", diff, verdict)
+                pixelDiffResult = result
+                append(result)
+            } else {
+                append("Could not compute a pixel diff (likely a size mismatch between the two captures). "
+                       + "Compare the two thumbnails below by eye instead.")
+            }
+
+            append("Look at both images below. Same content, same colors, no blank/corruption = fast path validated.")
+
+        } catch {
+            append("FAILED: \(error.localizedDescription)")
+            AppLog.capture.error("Capture comparison failed: \(error.localizedDescription)")
         }
     }
 

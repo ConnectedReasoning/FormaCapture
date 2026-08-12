@@ -59,6 +59,10 @@ final class WebRenderService: NSObject {
         self.webView = WKWebView(frame: .zero, configuration: config)
         super.init()
         webView.navigationDelegate = self
+        // WKWebView is layer-backed internally in practice, but this makes
+        // it explicit rather than assumed -- FrameCaptureService's
+        // CALayer.render(in:) path needs webView.layer to be non-nil.
+        webView.wantsLayer = true
     }
 
     // MARK: - Page load

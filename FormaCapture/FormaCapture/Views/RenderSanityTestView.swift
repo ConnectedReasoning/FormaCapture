@@ -34,6 +34,11 @@ struct RenderSanityTestView: View {
                 }
                 .disabled(viewModel.isRunning)
 
+                Button(viewModel.isRunning ? "Running…" : "Compare capture methods") {
+                    Task { await viewModel.compareCaptureMethods() }
+                }
+                .disabled(viewModel.isRunning)
+
                 Spacer()
 
                 if let maxDrift = viewModel.maxDrift {
@@ -41,6 +46,30 @@ struct RenderSanityTestView: View {
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(maxDrift < 0.000001 ? .green : .orange)
                 }
+            }
+
+            if let diffResult = viewModel.pixelDiffResult {
+                Text(diffResult)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(diffResult.contains("SIGNIFICANTLY") ? .red : .primary)
+            }
+
+            if viewModel.snapshotCompareImage != nil || viewModel.pixelBufferCompareImage != nil {
+                HStack(spacing: 12) {
+                    VStack {
+                        Text("takeSnapshot() -- baseline").font(.caption2).foregroundStyle(.secondary)
+                        if let img = viewModel.snapshotCompareImage {
+                            Image(nsImage: img).resizable().scaledToFit()
+                        }
+                    }
+                    VStack {
+                        Text("CALayer.render(in:) -- candidate").font(.caption2).foregroundStyle(.secondary)
+                        if let img = viewModel.pixelBufferCompareImage {
+                            Image(nsImage: img).resizable().scaledToFit()
+                        }
+                    }
+                }
+                .frame(maxHeight: 160)
             }
 
             if let captured = viewModel.lastCapturedImage {
@@ -60,6 +89,6 @@ struct RenderSanityTestView: View {
             .frame(maxHeight: 300)
         }
         .padding()
-        .frame(minWidth: 700, minHeight: 780)
+        .frame(minWidth: 900, minHeight: 900)
     }
 }
