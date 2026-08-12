@@ -19,8 +19,10 @@ final class RenderSanityTestViewModel: ObservableObject {
     @Published var isRunning = false
     @Published var log: String = ""
     @Published var maxDrift: Double?
+    @Published var lastCapturedImage: NSImage?
 
     private let renderService = WebRenderService()
+    private let captureService = FrameCaptureService()
     var webView: WKWebView { renderService.webView }
 
     // Same defaults as capture_fast.py's sanity-test config.
@@ -82,6 +84,55 @@ final class RenderSanityTestViewModel: ObservableObject {
         } catch {
             append("FAILED: \(error.localizedDescription)")
             AppLog.render.error("Sanity test failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Independent of runSanityTest() -- does its own full setup so it works
+    /// whether or not the sanity test ran first. Steps to a specific, known
+    /// frame (5 seconds in) rather than capturing "whatever's currently
+    /// showing," so what you see in the saved PNG is reproducible and tied
+    /// to a controlled animation state, same principle as the drift checks.
+    func captureTestFrame() async {
+        isRunning = true
+        log = ""
+        lastCapturedImage = nil
+        defer { isRunning = false }
+
+        do {
+            append("Loading engines/p5.html from \(baseURL.absoluteString)...")
+            try await renderService.load(baseURL: baseURL)
+
+            append("Selecting animation: \(animation)")
+            try await renderService.selectAnimation(animation)
+
+            append("Selecting palette: \(palette)")
+            try await renderService.selectPalette(palette)
+
+            append("Waiting for setup...")
+            try await renderService.waitForSetupDone()
+
+            try await renderService.setNoiseSeed(noiseSeed)
+            try await renderService.stopAutomaticLoop()
+
+            let targetSeconds = 5.0
+            let targetFrameCount = targetSeconds * 60.0
+            append("Stepping to frameCount \(Int(targetFrameCount)) (\(targetSeconds)s in)...")
+            let actual = try await renderService.stepFrame(toTargetFrameCount: targetFrameCount)
+            append("Landed at frameCount \(actual)")
+
+            let outputURL = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("formacapture_test_frame_\(Int(Date().timeIntervalSince1970)).png")
+
+            append("Capturing snapshot...")
+            let image = try await captureService.captureSnapshotAndSavePNG(of: renderService.webView, to: outputURL)
+            lastCapturedImage = image
+
+            append("Saved: \(outputURL.path)")
+            NSWorkspace.shared.activateFileViewerSelecting([outputURL])
+
+        } catch {
+            append("FAILED: \(error.localizedDescription)")
+            AppLog.capture.error("Frame capture test failed: \(error.localizedDescription)")
         }
     }
 

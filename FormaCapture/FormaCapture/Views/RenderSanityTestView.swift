@@ -29,6 +29,11 @@ struct RenderSanityTestView: View {
                 }
                 .disabled(viewModel.isRunning)
 
+                Button(viewModel.isRunning ? "Running…" : "Capture test frame") {
+                    Task { await viewModel.captureTestFrame() }
+                }
+                .disabled(viewModel.isRunning)
+
                 Spacer()
 
                 if let maxDrift = viewModel.maxDrift {
@@ -36,6 +41,14 @@ struct RenderSanityTestView: View {
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(maxDrift < 0.000001 ? .green : .orange)
                 }
+            }
+
+            if let captured = viewModel.lastCapturedImage {
+                Image(nsImage: captured)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 160)
+                    .border(Color.gray.opacity(0.3))
             }
 
             ScrollView {
@@ -47,6 +60,6 @@ struct RenderSanityTestView: View {
             .frame(maxHeight: 300)
         }
         .padding()
-        .frame(minWidth: 700, minHeight: 640)
+        .frame(minWidth: 700, minHeight: 780)
     }
 }

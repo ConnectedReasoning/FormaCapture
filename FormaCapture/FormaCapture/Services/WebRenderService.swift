@@ -71,9 +71,40 @@ final class WebRenderService: NSObject {
         let pageURL = baseURL.appendingPathComponent("engines/p5.html")
         AppLog.render.info("Loading \(pageURL.absoluteString)")
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            self.loadContinuation = continuation
-            webView.load(URLRequest(url: pageURL))
+        // Raced against a timeout deliberately -- without this, a network
+        // request that gets silently blocked (e.g. missing sandbox
+        // entitlement) rather than cleanly refused just hangs forever with
+        // zero feedback, since didFinish/didFail never fire either way.
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { @MainActor in
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    self.loadContinuation = continuation
+                    self.webView.load(URLRequest(url: pageURL))
+                }
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: 15_000_000_000)
+                throw RenderError.timedOut(
+                    "page load (\(pageURL.absoluteString)). If the server is confirmed running "
+                    + "and this still times out, check Signing & Capabilities -> App Sandbox -> "
+                    + "Outgoing Connections (Client) is checked, and check Xcode's debug console "
+                    + "(Shift-Cmd-Y) for a sandbox network-denial message."
+                )
+            }
+            do {
+                try await group.next()
+                group.cancelAll()
+            } catch {
+                // Resume the abandoned continuation so Swift doesn't flag it as
+                // leaked (a harmless but noisy console warning), then clear the
+                // reference so a later, now-moot delegate callback finds nil
+                // and safely no-ops via `loadContinuation?.resume(...)` instead
+                // of attempting a second resume.
+                self.loadContinuation?.resume(throwing: error)
+                self.loadContinuation = nil
+                group.cancelAll()
+                throw error
+            }
         }
 
         // Mirrors: page.wait_for_selector("#anim")
@@ -84,7 +115,21 @@ final class WebRenderService: NSObject {
     // MARK: - Animation / palette selection
 
     /// Mirrors: page.select_option("#anim", key)
+    /// Waits for the target <option> to actually exist before selecting it --
+    /// the dropdown's options are populated asynchronously (each animation
+    /// module finishes its own dynamic import() before being appended), so
+    /// setting .value before that finishes is a silent no-op rather than an
+    /// error, leaving whichever animation loaded first selected instead.
+    /// Playwright's select_option() has this wait built in; raw JS .value
+    /// assignment does not -- this is what let "loop_topology" silently stay
+    /// on "flowfield" with zero error the first time this ran.
     func selectAnimation(_ key: String) async throws {
+        try await waitFor(
+            jsCondition: "Array.from(document.getElementById('anim').options).some(o => o.value === '\(key)')",
+            timeoutSeconds: 15,
+            description: "<option value='\(key)'> to exist in #anim"
+        )
+
         try await run("""
             (() => {
                 const el = document.getElementById('anim');
@@ -92,13 +137,29 @@ final class WebRenderService: NSObject {
                 el.dispatchEvent(new Event('change'));
             })();
         """)
+
+        let actual = try await runReturningString("document.getElementById('anim').value")
+        guard actual == key else {
+            throw RenderError.javaScriptFailed(
+                "Animation selection did not stick: wanted '\(key)', got '\(actual ?? "nil")'"
+            )
+        }
+        AppLog.render.info("Animation confirmed: \(actual ?? "?")")
     }
 
     /// Mirrors: page.select_option("#palette-selector", key) followed by the
     /// Python scripts' explicit verification step -- don't trust the palette
     /// applied silently, confirm it. This is what caught the very first bug
     /// in this whole project (PALETTE_KEY="Star Wars" vs the real key "starwars").
+    /// Also waits for the option to exist first, same reasoning as
+    /// selectAnimation above -- palette options are async-populated too.
     func selectPalette(_ key: String) async throws {
+        try await waitFor(
+            jsCondition: "Array.from(document.getElementById('palette-selector').options).some(o => o.value === '\(key)')",
+            timeoutSeconds: 15,
+            description: "<option value='\(key)'> to exist in #palette-selector"
+        )
+
         try await run("""
             (() => {
                 const el = document.getElementById('palette-selector');
