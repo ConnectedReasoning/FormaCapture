@@ -26,6 +26,7 @@ final class RenderSanityTestViewModel: ObservableObject {
 
     private let renderService = WebRenderService()
     private let captureService = FrameCaptureService()
+    private let encodingService = VideoEncodingService()
     var webView: WKWebView { renderService.webView }
 
     // Same defaults as capture_fast.py's sanity-test config.
@@ -201,6 +202,74 @@ final class RenderSanityTestViewModel: ObservableObject {
         } catch {
             append("FAILED: \(error.localizedDescription)")
             AppLog.capture.error("Capture comparison failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// The actual point of this whole app: drive the animation, capture each
+    /// frame via the validated fast path, encode it, produce a real MP4.
+    /// Short (3s) on purpose -- same "prove it at small scale first" pattern
+    /// as every sanity check before this one.
+    func renderTestClip() async {
+        isRunning = true
+        log = ""
+        defer { isRunning = false }
+
+        do {
+            append("Loading engines/p5.html from \(baseURL.absoluteString)...")
+            try await renderService.load(baseURL: baseURL)
+
+            append("Selecting animation: \(animation)")
+            try await renderService.selectAnimation(animation)
+
+            append("Selecting palette: \(palette)")
+            try await renderService.selectPalette(palette)
+
+            append("Waiting for setup...")
+            try await renderService.waitForSetupDone()
+
+            try await renderService.setNoiseSeed(noiseSeed)
+            try await renderService.stopAutomaticLoop()
+
+            let clipSeconds = 3.0
+            let clipFPS = 60.0
+            let totalFrames = Int(clipSeconds * clipFPS)
+            let internalStep = 60.0 / clipFPS
+
+            // Same dimensions FrameCaptureService.capturePixelBuffer(from:)
+            // will actually produce -- must match exactly or appendFrame
+            // will fail.
+            let webView = renderService.webView
+            let scale = webView.window?.backingScaleFactor ?? webView.layer?.contentsScale ?? 2.0
+            let width = Int(webView.bounds.width * scale)
+            let height = Int(webView.bounds.height * scale)
+
+            let outputURL = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("formacapture_test_clip_\(Int(Date().timeIntervalSince1970)).mp4")
+
+            append("Starting encoder: \(width)x\(height) @ \(Int(clipFPS))fps HEVC -> \(outputURL.lastPathComponent)")
+            try encodingService.start(outputURL: outputURL, width: width, height: height, frameRate: clipFPS)
+
+            append("Rendering \(totalFrames) frames (\(Int(clipSeconds))s)...")
+            for i in 0..<totalFrames {
+                let targetFrameCount = Double(i) * internalStep
+                _ = try await renderService.stepFrame(toTargetFrameCount: targetFrameCount)
+                let pixelBuffer = try captureService.capturePixelBuffer(from: webView)
+                try await encodingService.appendFrame(pixelBuffer)
+
+                if i % 30 == 0 {
+                    append("  frame \(i)/\(totalFrames)")
+                }
+            }
+
+            append("Finishing...")
+            try await encodingService.finish()
+
+            append("Done: \(outputURL.path)")
+            NSWorkspace.shared.activateFileViewerSelecting([outputURL])
+
+        } catch {
+            append("FAILED: \(error.localizedDescription)")
+            AppLog.encode.error("Render test clip failed: \(error.localizedDescription)")
         }
     }
 

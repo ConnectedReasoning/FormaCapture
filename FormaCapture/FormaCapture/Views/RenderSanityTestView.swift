@@ -39,6 +39,11 @@ struct RenderSanityTestView: View {
                 }
                 .disabled(viewModel.isRunning)
 
+                Button(viewModel.isRunning ? "Running…" : "Render test clip (3s MP4)") {
+                    Task { await viewModel.renderTestClip() }
+                }
+                .disabled(viewModel.isRunning)
+
                 Spacer()
 
                 if let maxDrift = viewModel.maxDrift {
