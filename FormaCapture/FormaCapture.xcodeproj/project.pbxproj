@@ -23,15 +23,45 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		64A87A39302F9F1C00FF6180 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		64A879EF302B5E5D00FF6180 /* FormaCapture.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FormaCapture.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		64A879FC302B5E6000FF6180 /* FormaCaptureTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FormaCaptureTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		64A87A06302B5E6000FF6180 /* FormaCaptureUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FormaCaptureUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		64A87A3B302F9F1C00FF6180 /* FormaCaptureCLI */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = FormaCaptureCLI; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		64A87A43302F9F7400FF6180 /* Exceptions for "FormaCapture" folder in "FormaCaptureCLI" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Services/FrameCaptureService.swift,
+				Services/OffscreenRenderWindow.swift,
+				Services/VideoEncodingService.swift,
+				Services/WebRenderService.swift,
+				Utilities/AppLog.swift,
+			);
+			target = 64A87A3A302F9F1C00FF6180 /* FormaCaptureCLI */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		64A879F1302B5E5D00FF6180 /* FormaCapture */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				64A87A43302F9F7400FF6180 /* Exceptions for "FormaCapture" folder in "FormaCaptureCLI" target */,
+			);
 			path = FormaCapture;
 			sourceTree = "<group>";
 		};
@@ -43,6 +73,11 @@
 		64A87A09302B5E6000FF6180 /* FormaCaptureUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = FormaCaptureUITests;
+			sourceTree = "<group>";
+		};
+		64A87A3C302F9F1C00FF6180 /* FormaCaptureCLI */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = FormaCaptureCLI;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -69,6 +104,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		64A87A38302F9F1C00FF6180 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -78,6 +120,7 @@
 				64A879F1302B5E5D00FF6180 /* FormaCapture */,
 				64A879FF302B5E6000FF6180 /* FormaCaptureTests */,
 				64A87A09302B5E6000FF6180 /* FormaCaptureUITests */,
+				64A87A3C302F9F1C00FF6180 /* FormaCaptureCLI */,
 				64A879F0302B5E5D00FF6180 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,6 +131,7 @@
 				64A879EF302B5E5D00FF6180 /* FormaCapture.app */,
 				64A879FC302B5E6000FF6180 /* FormaCaptureTests.xctest */,
 				64A87A06302B5E6000FF6180 /* FormaCaptureUITests.xctest */,
+				64A87A3B302F9F1C00FF6180 /* FormaCaptureCLI */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -163,6 +207,28 @@
 			productReference = 64A87A06302B5E6000FF6180 /* FormaCaptureUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		64A87A3A302F9F1C00FF6180 /* FormaCaptureCLI */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 64A87A3F302F9F1C00FF6180 /* Build configuration list for PBXNativeTarget "FormaCaptureCLI" */;
+			buildPhases = (
+				64A87A37302F9F1C00FF6180 /* Sources */,
+				64A87A38302F9F1C00FF6180 /* Frameworks */,
+				64A87A39302F9F1C00FF6180 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				64A87A3C302F9F1C00FF6180 /* FormaCaptureCLI */,
+			);
+			name = FormaCaptureCLI;
+			packageProductDependencies = (
+			);
+			productName = FormaCaptureCLI;
+			productReference = 64A87A3B302F9F1C00FF6180 /* FormaCaptureCLI */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +250,9 @@
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = 64A879EE302B5E5D00FF6180;
 					};
+					64A87A3A302F9F1C00FF6180 = {
+						CreatedOnToolsVersion = 26.6;
+					};
 				};
 			};
 			buildConfigurationList = 64A879EA302B5E5D00FF6180 /* Build configuration list for PBXProject "FormaCapture" */;
@@ -203,6 +272,7 @@
 				64A879EE302B5E5D00FF6180 /* FormaCapture */,
 				64A879FB302B5E6000FF6180 /* FormaCaptureTests */,
 				64A87A05302B5E6000FF6180 /* FormaCaptureUITests */,
+				64A87A3A302F9F1C00FF6180 /* FormaCaptureCLI */,
 			);
 		};
 /* End PBXProject section */
@@ -247,6 +317,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		64A87A02302B5E6000FF6180 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		64A87A37302F9F1C00FF6180 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -555,6 +632,32 @@
 			};
 			name = Release;
 		};
+		64A87A40302F9F1C00FF6180 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = U2KZT2D9Z4;
+				ENABLE_HARDENED_RUNTIME = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		64A87A41302F9F1C00FF6180 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = U2KZT2D9Z4;
+				ENABLE_HARDENED_RUNTIME = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -590,6 +693,15 @@
 			buildConfigurations = (
 				64A87A17302B5E6000FF6180 /* Debug */,
 				64A87A18302B5E6000FF6180 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		64A87A3F302F9F1C00FF6180 /* Build configuration list for PBXNativeTarget "FormaCaptureCLI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64A87A40302F9F1C00FF6180 /* Debug */,
+				64A87A41302F9F1C00FF6180 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
