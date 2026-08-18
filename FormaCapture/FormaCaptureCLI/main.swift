@@ -67,6 +67,17 @@ struct CLIOptions {
     var workers: Int = 2
     var durationSeconds: Double = 20.0
     var outputDir: String = ""
+
+    // Explicit-flag tracking, not just default-value comparison -- lets the
+    // single-worker path (below) tell "--duration-seconds was genuinely
+    // passed" apart from "durationSeconds still equals its default," and
+    // "--end-frame was genuinely passed" apart from "endFrame still equals
+    // ITS default," without a fragile == comparison against whatever the
+    // default happens to be (e.g. someone passing --duration-seconds 20
+    // explicitly, matching the default by coincidence, should still count
+    // as explicit).
+    var endFrameWasExplicit: Bool = false
+    var durationSecondsWasExplicit: Bool = false
 }
 
 func parseArguments() -> CLIOptions {
@@ -86,14 +97,14 @@ func parseArguments() -> CLIOptions {
         case "--animation": if let v = args.next() { options.animation = v }
         case "--palette": if let v = args.next() { options.palette = v }
         case "--start-frame": if let v = args.next(), let i = Int(v) { options.startFrame = i }
-        case "--end-frame": if let v = args.next(), let i = Int(v) { options.endFrame = i }
+        case "--end-frame": if let v = args.next(), let i = Int(v) { options.endFrame = i; options.endFrameWasExplicit = true }
         case "--output": if let v = args.next() { options.outputPath = v }
         case "--fps": if let v = args.next(), let d = Double(v) { options.outputFPS = d }
         case "--noise-seed": if let v = args.next(), let i = Int(v) { options.noiseSeed = i }
         case "--base-url": if let v = args.next() { options.baseURLString = v }
         case "--orchestrate": options.orchestrate = true
         case "--workers": if let v = args.next(), let i = Int(v) { options.workers = i }
-        case "--duration-seconds": if let v = args.next(), let d = Double(v) { options.durationSeconds = d }
+        case "--duration-seconds": if let v = args.next(), let d = Double(v) { options.durationSeconds = d; options.durationSecondsWasExplicit = true }
         case "--output-dir": if let v = args.next() { options.outputDir = v }
         default:
             errLog("Unknown argument: \(arg)")
@@ -270,11 +281,23 @@ func runOrchestrator(_ options: CLIOptions) -> Never {
     }
 }
 
-let options = parseArguments()
+var options = parseArguments()
 
 if options.orchestrate {
     runOrchestrator(options)
     // runOrchestrator always exits -- nothing below this runs in orchestrate mode.
+}
+
+// --duration-seconds is convenient shorthand for --end-frame, previously
+// only wired up for --orchestrate's own frame-range-splitting math (see
+// runOrchestrator's totalFrames calculation) -- silently ignored here in
+// the single-worker path, meaning it fell through to endFrame's plain
+// default (600) unless --end-frame was ALSO passed explicitly. Only derive
+// endFrame from it when --end-frame itself wasn't explicitly given, so
+// explicit --end-frame still wins if someone passes both (matches
+// runOrchestrator's own duration-based framecount math: seconds * fps).
+if options.durationSecondsWasExplicit && !options.endFrameWasExplicit {
+    options.endFrame = options.startFrame + Int(options.durationSeconds * options.outputFPS)
 }
 
 // MARK: - Minimal headless AppKit setup
@@ -303,13 +326,21 @@ Task { @MainActor in
         // doesn't belong to that engine's page, selectAnimation() below
         // throws a specific error naming what IS available on the page,
         // rather than a silent no-op or a generic timeout.
+        timestampedLog("[cli-debug] calling load()...")
         try await renderService.load(baseURL: baseURL, engine: options.engine)
+        timestampedLog("[cli-debug] load() returned, calling selectAnimation()...")
         try await renderService.selectAnimation(options.animation)
+        timestampedLog("[cli-debug] selectAnimation() returned, calling selectPalette()...")
         try await renderService.selectPalette(options.palette)
+        timestampedLog("[cli-debug] selectPalette() returned, calling waitForSetupDone()...")
         try await renderService.waitForSetupDone(engine: options.engine)
+        timestampedLog("[cli-debug] waitForSetupDone() returned, calling setNoiseSeed()...")
         try await renderService.setNoiseSeed(options.noiseSeed, engine: options.engine)
+        timestampedLog("[cli-debug] setNoiseSeed() returned, calling hideControls()...")
         try await renderService.hideControls()
+        timestampedLog("[cli-debug] hideControls() returned, calling stopAutomaticLoop()...")
         try await renderService.stopAutomaticLoop(engine: options.engine)
+        timestampedLog("[cli-debug] stopAutomaticLoop() returned.")
 
         timestampedLog("Setup complete, starting capture loop.")
 

@@ -1,4 +1,3 @@
-
 //
 //  WebRenderService.swift
 //  FormaCapture
@@ -45,7 +44,7 @@ import os
 // and the FormaCaptureCLI target, while main.swift belongs to the CLI target
 // only -- WebRenderService's own methods below need this, and a CLI-only
 // file can't provide something a shared file depends on.
-let knownEngines = ["p5", "threejs", "canvas2d", "pixi", "regl", "svg"]
+let knownEngines = ["p5", "threejs", "canvas2d", "pixi", "regl", "svg", "canvas2dalt"]
 
 enum RenderMode {
     // p5 (native currentSketch/frameCount/redraw) and regl (shimmed with the
@@ -85,7 +84,14 @@ let engineRenderModes: [String: RenderMode] = [
     // fix it, so the mechanism is still not fully confirmed; this steppable
     // path sidesteps the question entirely rather than resolving it).
     "threejs": .steppable,
-    "canvas2d": .realtime,
+    // Changed from .realtime -- engines/canvas2d.html now has the same
+    // p5-shaped window.currentSketch shim as threejs.html/regl.html.
+    // Verified working for threejs; canvas2d's own animation modules mostly
+    // track time via a per-call increment rather than wall-clock reads, so
+    // this should carry over cleanly EXCEPT for mondrian.js/knife_blocks.js
+    // specifically -- see the shim's comment in canvas2d.html for why those
+    // two will still render with broken/frozen-looking timing even now.
+    "canvas2d": .steppable,
     "pixi": .realtime,
     "svg": .realtime,
 ]
@@ -216,7 +222,13 @@ final class WebRenderService: NSObject {
     /// in a terminal first, same as every Python capture script so far.
     func load(baseURL: URL, engine: String = "p5") async throws {
         let pageURL = baseURL.appendingPathComponent("engines/\(engine).html")
-        AppLog.render.info("Loading \(pageURL.absoluteString)")
+        // NOTE: previously AppLog.render.info(...) here -- os.Logger output
+        // goes to the unified logging system (Console.app / `log stream`),
+        // NOT stderr, so it never actually appeared in any worker .log file
+        // despite looking like a normal log call. Switched to stderr
+        // directly, matching the console-bridge fix applied elsewhere in
+        // this file for the same reason.
+        FileHandle.standardError.write("[cli-debug] load(): requesting \(pageURL.absoluteString)\n".data(using: .utf8) ?? Data())
 
         // Raced against a timeout deliberately -- without this, a network
         // request that gets silently blocked (e.g. missing sandbox
@@ -478,11 +490,36 @@ final class WebRenderService: NSObject {
     private func waitFor(jsCondition: String, timeoutSeconds: TimeInterval, description: String,
                           pollInterval: TimeInterval = 0.1) async throws {
         let deadline = Date().addingTimeInterval(timeoutSeconds)
+        var pollCount = 0
+        var lastError: Error?
         while Date() < deadline {
-            if let result = try? await webView.evaluateJavaScript(jsCondition) as? Bool, result {
-                return
+            pollCount += 1
+            do {
+                let result = try await webView.evaluateJavaScript(jsCondition) as? Bool
+                if pollCount <= 3 || pollCount % 20 == 0 {
+                    let line = "[cli-debug] waitFor poll #\(pollCount) for '\(description)': result=\(String(describing: result))\n"
+                    FileHandle.standardError.write(line.data(using: .utf8) ?? Data())
+                }
+                if result == true {
+                    return
+                }
+            } catch {
+                // PREVIOUSLY: try? swallowed this entirely -- a poll that
+                // THROWS (e.g. the condition expression itself hits a
+                // ReferenceError, not just evaluates falsy) looked
+                // identical to "still false, keep waiting" for the full
+                // timeout, with zero visibility into why. Logging every
+                // occurrence (not just periodically, unlike the success
+                // path above) since a thrown error here is much rarer and
+                // much more likely to be the actual answer.
+                let line = "[cli-debug] waitFor poll #\(pollCount) for '\(description)' THREW: \(error)\n"
+                FileHandle.standardError.write(line.data(using: .utf8) ?? Data())
+                lastError = error
             }
             try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+        }
+        if let lastError {
+            FileHandle.standardError.write("[cli-debug] waitFor gave up after \(pollCount) polls; last error was: \(lastError)\n".data(using: .utf8) ?? Data())
         }
         throw RenderError.timedOut(description)
     }
@@ -492,16 +529,19 @@ final class WebRenderService: NSObject {
 
 extension WebRenderService: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        FileHandle.standardError.write("[cli-debug] didFinish navigation callback fired\n".data(using: .utf8) ?? Data())
         loadContinuation?.resume()
         loadContinuation = nil
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        FileHandle.standardError.write("[cli-debug] didFail navigation callback fired: \(error)\n".data(using: .utf8) ?? Data())
         loadContinuation?.resume(throwing: error)
         loadContinuation = nil
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        FileHandle.standardError.write("[cli-debug] didFailProvisionalNavigation callback fired: \(error)\n".data(using: .utf8) ?? Data())
         loadContinuation?.resume(throwing: error)
         loadContinuation = nil
     }
